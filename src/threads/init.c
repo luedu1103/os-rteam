@@ -71,6 +71,36 @@ static void locate_block_device (enum block_type, const char *name);
 #endif
 
 int main (void) NO_RETURN;
+void pintos_fgets(char *buffer, int size);
+
+#define BACKSPACE 127 
+
+// Reads a line like fgets()
+void pintos_fgets(char *buffer, int size) {
+    int i = 0;
+    char c;
+
+    while (i < size - 1) {
+        c = input_getc();
+        
+        // Stop if we encounter newline or carriage return
+        if (c == '\n' || c == '\r') {
+            break;
+        }
+
+        if (c == BACKSPACE && i > 0) {
+          i--;
+          printf("\b \b");
+        }
+        else {
+          printf("%c", c); 
+          buffer[i++] = c;  // Store the character in the buffer
+        }
+
+    }
+    
+    buffer[i] = '\0';  // Null-terminate the string
+}
 
 /* Pintos main program. */
 int
@@ -130,7 +160,40 @@ main (void)
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */
-  run_actions (argv);
+  if (*argv != NULL) {
+    /* Run actions specified on kernel command line. */
+    run_actions (argv);
+  } else {
+    // little shell
+    while(true){
+      char input[100];
+      printf("\nPKUOS>");
+      pintos_fgets(input, sizeof(input));
+      
+
+      // Parse the input
+      char *saveptr;
+      char *command = strtok_r(input, "\n", &saveptr);
+      if (command == NULL) {
+        printf("\ninvalid command");
+        continue;
+      }
+
+
+      if (strcmp(command, "exit") == 0) {
+        printf("\nExiting...");
+        shutdown();
+        thread_exit ();
+      }
+      else if (strcmp(command, "whoiam") == 0) {
+        printf("\n22200255");
+      }
+      else {
+        printf("\ninvalid command");
+        continue; 
+      }
+    }
+  }
 
   /* Finish up. */
   shutdown ();
