@@ -71,12 +71,13 @@ static void locate_block_device (enum block_type, const char *name);
 #endif
 
 int main (void) NO_RETURN;
-void pintos_fgets(char *buffer, int size);
+void pintos_fgets (char *buffer, int size);
 
 #define BACKSPACE 127 
 
 // Reads a line like fgets()
-void pintos_fgets(char *buffer, int size) {
+void 
+pintos_fgets (char *buffer, int size) {
     int i = 0;
     char c;
 
