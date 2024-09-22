@@ -75,6 +75,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_sleep (int64_t ticks);
+void thread_wakeup (struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -349,6 +350,17 @@ thread_sleep (int64_t ticks)
   list_push_back(&sleep_list, &cur->elem);
 
   thread_block();
+  
+  intr_set_level(old_level);
+}
+
+/* Adds the current thread to the ready list and change its status to ready*/
+void
+thread_wakeup (struct thread *t) 
+{
+  enum intr_level old_level = intr_disable();
+
+  thread_unblock(t);
   
   intr_set_level(old_level);
 }

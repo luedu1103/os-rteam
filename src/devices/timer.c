@@ -93,8 +93,8 @@ timer_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_ON);
 
-  // if (timer_elapsed (start) < ticks)
-  thread_sleep(start + ticks);
+  if (timer_elapsed (start) < ticks)
+      thread_sleep(start + ticks);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -183,7 +183,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     // Check if the thread's sleep time has elapsed.
     if (ticks >= t->local_ticks) {
       e = list_remove(e);  // Remove from the sleep list.
-      thread_unblock(t);   // Unblock the thread.
+      thread_wakeup(t);   // Wake up the thread.
     } else {
       e = list_next(e);    // Move to the next thread in the sleep list.
     }
