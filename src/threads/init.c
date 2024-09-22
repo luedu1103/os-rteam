@@ -168,7 +168,7 @@ main (void)
     // little shell
     while(true){
       char input[100];
-      printf("\nPKUOS>");
+      printf("\nPKUOS> ");
       pintos_fgets(input, sizeof(input));
       
 

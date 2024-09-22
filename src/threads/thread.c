@@ -20,6 +20,10 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* List of processes that are blocked when the function sleep_timer
+   is called on a thread*/ 
+struct list sleep_list;
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -70,6 +74,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+void thread_sleep (int64_t ticks);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -92,6 +97,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list); // we initialize the sleep list here
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -329,6 +335,22 @@ thread_foreach (thread_action_func *func, void *aux)
       struct thread *t = list_entry (e, struct thread, allelem);
       func (t, aux);
     }
+}
+
+/* Adds the current thread to the sleep list and change its status to BLOCKED*/
+void
+thread_sleep (int64_t ticks) 
+{
+  struct thread *cur = thread_current ();
+
+  enum intr_level old_level = intr_disable();
+
+  cur->local_ticks = ticks;
+  list_push_back(&sleep_list, &cur->elem);
+
+  thread_block();
+  
+  intr_set_level(old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
