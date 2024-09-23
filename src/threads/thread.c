@@ -62,6 +62,12 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    const struct thread *thread_a = list_entry(a, struct thread, elem);
+    const struct thread *thread_b = list_entry(b, struct thread, elem);
+
+    return thread_a->priority > thread_b->priority;
+}
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -208,6 +214,11 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  struct thread *curr = thread_current();
+  if (curr->priority < t->priority){
+    thread_yield();
+  }
+
   return tid;
 }
 
@@ -244,7 +255,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -315,7 +326,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
