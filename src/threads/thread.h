@@ -92,6 +92,14 @@ struct thread
 
     /* ticks to wake up*/
     int64_t local_ticks; 
+    /* base priority*/
+    int base_priority; 
+    /* addres of the lock that it is waiting for*/
+    struct lock *wait_on_locks;
+    /* list of priority donations*/
+    struct list donations;  
+    /* priority donated*/
+    struct list_elem d_elem;  
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -136,6 +144,7 @@ void thread_foreach (thread_action_func *, void *);
 
 void thread_sleep (int64_t ticks);
 void thread_wakeup (struct thread *t);
+void thread_donate_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);

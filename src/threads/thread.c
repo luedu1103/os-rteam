@@ -62,12 +62,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
-    const struct thread *thread_a = list_entry(a, struct thread, elem);
-    const struct thread *thread_b = list_entry(b, struct thread, elem);
-
-    return thread_a->priority > thread_b->priority;
-}
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -82,6 +76,8 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_sleep (int64_t ticks);
 void thread_wakeup (struct thread *t);
+void thread_donate_priority (void);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED); 
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -214,10 +210,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  struct thread *curr = thread_current();
-  if (curr->priority < t->priority){
-    thread_yield();
-  }
+  struct thread *cur = thread_current();
+  if (cur->priority < t->priority)
+    thread_yield ();
 
   return tid;
 }
@@ -257,6 +252,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
   t->status = THREAD_READY;
+
   intr_set_level (old_level);
 }
 
@@ -325,8 +321,19 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
+  
+  if (cur != idle_thread)
+  {
     list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
+    
+    // Print the entire ready list
+    // struct list_elem *e;
+    // printf("Ready List:\n");
+    // for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
+    //   struct thread *t = list_entry(e, struct thread, elem);
+      // printf("Thread ID: %d, Priority: %d\n", t->tid, t->priority);
+    // }
+  } 
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -376,11 +383,77 @@ thread_wakeup (struct thread *t)
   intr_set_level(old_level);
 }
 
+void 
+thread_donate_priority (void)
+{
+  struct thread *cur = thread_current();
+  struct thread *t = cur;
+
+  /* Iterate up the chain of locks if necessary to propagate donation. */
+  while (t->wait_on_locks != NULL) {
+    struct lock *lock = t->wait_on_locks;
+    
+    /* Get the thread holding the lock. */
+    struct thread *lock_holder = lock->holder;
+    
+    /* If the current thread's priority is higher, donate it. */
+    if (lock_holder != NULL && lock_holder->priority < cur->priority) {
+      // list_insert_ordered(&lock_holder->donations, &cur->d_elem, cmp_priority, NULL);
+      lock_holder->priority = list_entry(list_front(&lock_holder->donations), struct thread, d_elem)->priority;
+    }
+    
+    /* Move up to the next thread holding the lock. */
+    t = lock_holder;
+  }
+}
+
+bool 
+cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) 
+{
+    const struct thread *thread_a = list_entry(a, struct thread, elem);
+    const struct thread *thread_b = list_entry(b, struct thread, elem);
+
+    return thread_a->priority > thread_b->priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *t = thread_current();
+
+  // If the new priority is the same, do nothing.
+  if (t->priority == new_priority) 
+    return;
+
+  t->priority = new_priority; // Set new priority.
+  
+  // If there are donations, ensure the highest priority is maintained.
+  if (!list_empty(&t->donations)) {
+    printf("Si hay donaciones");
+    struct thread *top_donor = list_entry(list_front(&t->donations), struct thread, d_elem);
+    
+    // Ensure thread's priority reflects the highest donation if needed.
+    if (new_priority < top_donor->priority) {
+      printf("Se dona");
+      t->priority = top_donor->priority;
+    }
+  }
+}
+
+int thread_get_highest_priority(void) 
+{
+  int highest_priority = PRI_MIN;
+  struct list_elem *e;
+
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+
+    if (t->priority > highest_priority)
+      highest_priority = t->priority;
+  }
+  return highest_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -456,6 +529,7 @@ idle (void *idle_started_ UNUSED)
          See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
          7.11.1 "HLT Instruction". */
       asm volatile ("sti; hlt" : : : "memory");
+      //"
     }
 }
 
@@ -507,7 +581,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->donations);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
