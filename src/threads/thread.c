@@ -76,8 +76,9 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_sleep (int64_t ticks);
 void thread_wakeup (struct thread *t);
-void thread_donate_priority (void);
 void thread_preepmt (void);
+void thread_update_priority (void);
+void thread_donate_priority (void);
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED); 
 bool cmp_local_tick (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
@@ -390,30 +391,6 @@ thread_preepmt (void)
   }
 }
 
-void 
-thread_donate_priority (void)
-{
-  struct thread *cur = thread_current();
-  struct thread *t = cur;
-
-  /* Iterate up the chain of locks if necessary to propagate donation. */
-  while (t->wait_on_locks != NULL) {
-    struct lock *lock = t->wait_on_locks;
-    
-    /* Get the thread holding the lock. */
-    struct thread *lock_holder = lock->holder;
-    
-    /* If the current thread's priority is higher, donate it. */
-    if (lock_holder != NULL && lock_holder->priority < cur->priority) {
-      // list_insert_ordered(&lock_holder->donations, &cur->d_elem, cmp_priority, NULL);
-      lock_holder->priority = list_entry(list_front(&lock_holder->donations), struct thread, d_elem)->priority;
-    }
-    
-    /* Move up to the next thread holding the lock. */
-    t = lock_holder;
-  }
-}
-
 bool 
 cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) 
 {
@@ -444,19 +421,51 @@ thread_set_priority (int new_priority)
 
   t->base_priority = new_priority; // Set new priority.
   
-  // If there are donations, ensure the highest priority is maintained.
+  thread_update_priority ();
+  thread_preepmt ();
+}
+
+void 
+thread_donate_priority (void)
+{
+  struct thread *cur = thread_current();
+  int depth = 0;
+
+  while (cur->wait_on_locks != NULL && depth < 8) {
+    struct lock *waiting_lock = cur->wait_on_locks; 
+    struct thread *lock_holder = waiting_lock->holder;
+
+    if (lock_holder == NULL) {
+      break; 
+    }
+
+    // Donate priority if the lock holder's priority is lower
+    if (lock_holder->priority < cur->priority) {
+      lock_holder->priority = cur->priority;
+    }
+
+    cur = lock_holder;
+    depth++;
+  }
+}
+
+void
+thread_update_priority (void)
+{
+  struct thread *t = thread_current();
+  int new_priority = t->base_priority;
+
   if (!list_empty(&t->donations)) {
     struct thread *top_donor = list_entry(list_front(&t->donations), struct thread, d_elem);
     
     // Ensure thread's priority reflects the highest donation if needed.
-    if (new_priority < top_donor->priority) {
+    if (new_priority < top_donor->priority)
       t->priority = top_donor->priority;
-    }
   }
-
-  t->priority = new_priority;
-
-  thread_preepmt ();
+  else 
+  {
+    t->priority = new_priority; // Reset to original base priority.
+  }
 }
 
 /* Returns the current thread's priority. */

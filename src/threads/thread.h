@@ -145,6 +145,7 @@ void thread_foreach (thread_action_func *, void *);
 void thread_sleep (int64_t ticks);
 void thread_wakeup (struct thread *t);
 void thread_donate_priority (void);
+void thread_update_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
