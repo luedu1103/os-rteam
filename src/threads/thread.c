@@ -77,7 +77,9 @@ static tid_t allocate_tid (void);
 void thread_sleep (int64_t ticks);
 void thread_wakeup (struct thread *t);
 void thread_donate_priority (void);
+void thread_preepmt (void);
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED); 
+bool cmp_local_tick (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -210,9 +212,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  struct thread *cur = thread_current();
-  if (cur->priority < t->priority)
-    thread_yield ();
+  thread_preepmt();
 
   return tid;
 }
@@ -323,17 +323,7 @@ thread_yield (void)
   old_level = intr_disable ();
   
   if (cur != idle_thread)
-  {
     list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
-    
-    // Print the entire ready list
-    // struct list_elem *e;
-    // printf("Ready List:\n");
-    // for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
-    //   struct thread *t = list_entry(e, struct thread, elem);
-      // printf("Thread ID: %d, Priority: %d\n", t->tid, t->priority);
-    // }
-  } 
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -365,7 +355,7 @@ thread_sleep (int64_t ticks)
   enum intr_level old_level = intr_disable();
 
   cur->local_ticks = ticks;
-  list_push_back(&sleep_list, &cur->elem);
+  list_insert_ordered(&sleep_list, &cur->elem, cmp_local_tick, 0);
 
   thread_block();
   
@@ -381,6 +371,23 @@ thread_wakeup (struct thread *t)
   thread_unblock(t);
   
   intr_set_level(old_level);
+}
+
+/* When the priority of the prepared thread is higher than 
+   that of the running thread, switching to the prepared thread. */
+void
+thread_preepmt (void)
+{
+  if (list_empty (&ready_list)) { return; }
+
+  struct thread *t = thread_current ();
+  struct thread *ready_list_t = list_entry (
+    list_front (&ready_list), struct thread, elem
+  );
+
+  if (t->priority < ready_list_t->priority) {
+    thread_yield (); 
+  }
 }
 
 void 
@@ -416,6 +423,15 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNU
     return thread_a->priority > thread_b->priority;
 }
 
+bool 
+cmp_local_tick (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+    const struct thread *thread_a = list_entry(a, struct thread, elem);
+    const struct thread *thread_b = list_entry(b, struct thread, elem);
+
+    return thread_a->local_ticks < thread_b->local_ticks;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
@@ -426,34 +442,21 @@ thread_set_priority (int new_priority)
   if (t->priority == new_priority) 
     return;
 
-  t->priority = new_priority; // Set new priority.
+  t->base_priority = new_priority; // Set new priority.
   
   // If there are donations, ensure the highest priority is maintained.
   if (!list_empty(&t->donations)) {
-    printf("Si hay donaciones");
     struct thread *top_donor = list_entry(list_front(&t->donations), struct thread, d_elem);
     
     // Ensure thread's priority reflects the highest donation if needed.
     if (new_priority < top_donor->priority) {
-      printf("Se dona");
       t->priority = top_donor->priority;
     }
   }
-}
 
-int thread_get_highest_priority(void) 
-{
-  int highest_priority = PRI_MIN;
-  struct list_elem *e;
+  t->priority = new_priority;
 
-  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
-  {
-    struct thread *t = list_entry(e, struct thread, allelem);
-
-    if (t->priority > highest_priority)
-      highest_priority = t->priority;
-  }
-  return highest_priority;
+  thread_preepmt ();
 }
 
 /* Returns the current thread's priority. */

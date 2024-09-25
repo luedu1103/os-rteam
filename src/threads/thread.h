@@ -148,6 +148,7 @@ void thread_donate_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_preepmt (void);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
@@ -155,5 +156,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_local_tick (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */

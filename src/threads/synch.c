@@ -129,7 +129,7 @@ sema_up (struct semaphore *sema)
     
     // Optionally, yield to the newly unblocked thread if it has a higher priority
     if (t->priority > thread_get_priority())
-        thread_yield();
+      thread_yield();
   }
 
   intr_set_level(old_level);
@@ -219,7 +219,6 @@ lock_acquire (struct lock *lock)
     {
       list_insert_ordered(&lock->holder->donations, &cur->d_elem, cmp_priority, NULL); // save the thread in the donation list in order
       lock->holder->priority = cur->priority;
-      thread_set_priority (cur->priority);
     }
     cur->wait_on_locks = lock;
   }
