@@ -104,6 +104,9 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    int nice;
+    int recent_cpu;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -143,7 +146,7 @@ typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 void thread_sleep (int64_t ticks);
-void thread_wakeup (struct thread *t);
+void thread_wakeup (int64_t ticks);
 void thread_donate_priority (void);
 void thread_update_priority (void);
 

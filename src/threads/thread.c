@@ -20,6 +20,8 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+int load_avg;
+
 /* List of processes that are blocked when the function sleep_timer
    is called on a thread*/ 
 struct list sleep_list;
@@ -75,7 +77,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_sleep (int64_t ticks);
-void thread_wakeup (struct thread *t);
+void thread_wakeup (int64_t ticks);
 void thread_preepmt (void);
 void thread_update_priority (void);
 void thread_donate_priority (void);
@@ -365,14 +367,52 @@ thread_sleep (int64_t ticks)
 
 /* Adds the current thread to the ready list and change its status to ready*/
 void
-thread_wakeup (struct thread *t) 
+thread_wakeup (int64_t ticks) 
 {
   enum intr_level old_level = intr_disable();
+  
+  struct list_elem *e = list_begin(&sleep_list);
 
-  thread_unblock(t);
+  while (e != list_end(&sleep_list))
+  {
+    struct thread *t = list_entry(e, struct thread, elem);
+
+    // Check if the thread's sleep time has elapsed.
+    if (ticks >= t->local_ticks)
+    {
+      e = list_remove(e);  // Remove from the sleep list.
+      thread_unblock(t);
+    }
+    else
+    {
+      e = list_next(e);     // Move to the next thread in the sleep list.
+    }
+  }
   
   intr_set_level(old_level);
 }
+
+/*void
+wake_up_sleeping_threads(int current_ticks)
+{
+  struct list_elem *e = list_begin(&sleep_list);
+
+  while (e != list_end(&sleep_list))
+  {
+    struct thread *t = list_entry(e, struct thread, elem);
+
+    // Check if the thread's sleep time has elapsed.
+    if (current_ticks >= t->local_ticks)
+    {
+      e = list_remove(e);  // Remove from the sleep list.
+      thread_wakeup(t);     // Wake up the thread.
+    }
+    else
+    {
+      e = list_next(e);     // Move to the next thread in the sleep list.
+    }
+  }
+}*/
 
 /* When the priority of the prepared thread is higher than 
    that of the running thread, switching to the prepared thread. */
@@ -479,15 +519,15 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  struct thread *cur = thread_current ();
+  return cur->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -595,6 +635,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->base_priority = priority;
   t->magic = THREAD_MAGIC;
+
+  t->nice = 0;
+  t->recent_cpu = 0;
 
   list_init(&t->donations);
 

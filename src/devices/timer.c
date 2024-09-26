@@ -174,20 +174,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
-  // code to add
-  struct list_elem *e = list_begin(&sleep_list);
-
-  while (e != list_end(&sleep_list)) {
-    struct thread *t = list_entry(e, struct thread, elem);
-
-    // Check if the thread's sleep time has elapsed.
-    if (ticks >= t->local_ticks) {
-      e = list_remove(e);  // Remove from the sleep list.
-      thread_wakeup(t);   // Wake up the thread.
-    } else {
-      e = list_next(e);    // Move to the next thread in the sleep list.
-    }
-  }
+  // Call the function that handles waking up sleeping threads
+  thread_wakeup(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
