@@ -1,5 +1,5 @@
 ## Intro
-Hi, this is the rustteam, a group in the Operative System class.
+Hi, this is the rustteam, a group in the Operative System course.
 
 ![Alt text](https://cdn.discordapp.com/emojis/1184175117840961606.webp?size=96&quality=lossless)
 
