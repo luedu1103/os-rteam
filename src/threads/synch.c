@@ -262,20 +262,23 @@ lock_release (struct lock *lock)
   
   lock->holder = NULL;
 
-  // Remove donations related to the released lock.
-  struct list_elem *e = list_begin(&cur->donations);
-  while (e != list_end(&cur->donations)) {
-    struct thread *donor = list_entry(e, struct thread, d_elem);
+  if (!thread_mlfqs)
+  {
+    // Remove donations related to the released lock.
+    struct list_elem *e = list_begin(&cur->donations);
+    while (e != list_end(&cur->donations)) {
+      struct thread *donor = list_entry(e, struct thread, d_elem);
 
-    // Remove the donor if it was waiting on this lock.
-    if (donor->wait_on_locks == lock) {
-      e = list_remove(e);
-    } else {
-      e = list_next(e);
+      // Remove the donor if it was waiting on this lock.
+      if (donor->wait_on_locks == lock) {
+        e = list_remove(e);
+      } else {
+        e = list_next(e);
+      }
     }
-  }
 
-  thread_update_priority ();
+    thread_update_priority ();
+  }
 
   sema_up (&lock->semaphore);
 }
